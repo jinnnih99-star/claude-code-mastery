@@ -1,0 +1,285 @@
+YPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>계산기</title>
+  <style>
+    :root {
+      --bg: #1e1e2e;
+      --panel: #2a2a3d;
+      --display: #14141f;
+      --text: #f5f5f5;
+      --btn: #3a3a52;
+      --btn-hover: #4a4a68;
+      --op: #f39c12;
+      --op-hover: #f5b041;
+      --func: #6c7a89;
+      --func-hover: #7f8e9d;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--bg);
+      font-family: "Segoe UI", "Malgun Gothic", sans-serif;
+      color: var(--text);
+      padding: 16px;
+    }
+
+    .calculator {
+      width: 100%;
+      max-width: 340px;
+      background: var(--panel);
+      border-radius: 20px;
+      padding: 20px;
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.4);
+    }
+
+    .display {
+      background: var(--display);
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 16px;
+      min-height: 110px;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      align-items: flex-end;
+      overflow: hidden;
+    }
+
+    .expression {
+      font-size: 14px;
+      color: #9aa0b4;
+      min-height: 18px;
+      word-break: break-all;
+    }
+
+    .result {
+      font-size: 40px;
+      font-weight: 600;
+      word-break: break-all;
+      text-align: right;
+    }
+
+    .buttons {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+    }
+
+    button {
+      font-size: 22px;
+      border: none;
+      border-radius: 14px;
+      padding: 18px 0;
+      cursor: pointer;
+      color: var(--text);
+      background: var(--btn);
+      transition: background 0.15s, transform 0.05s;
+    }
+
+    button:hover { background: var(--btn-hover); }
+    button:active { transform: scale(0.96); }
+
+    button.func { background: var(--func); }
+    button.func:hover { background: var(--func-hover); }
+
+    button.op { background: var(--op); }
+    button.op:hover { background: var(--op-hover); }
+
+    button.zero { grid-column: span 2; }
+
+    button.active-op { outline: 3px solid #fff; outline-offset: -3px; }
+  </style>
+</head>
+<body>
+  <div class="calculator">
+    <div class="display">
+      <div class="expression" id="expression"></div>
+      <div class="result" id="result">0</div>
+    </div>
+
+    <div class="buttons">
+      <button class="func" data-action="clear">AC</button>
+      <button class="func" data-action="sign">+/-</button>
+      <button class="func" data-action="percent">%</button>
+      <button class="op" data-op="÷">÷</button>
+
+      <button data-digit="7">7</button>
+      <button data-digit="8">8</button>
+      <button data-digit="9">9</button>
+      <button class="op" data-op="×">×</button>
+
+      <button data-digit="4">4</button>
+      <button data-digit="5">5</button>
+      <button data-digit="6">6</button>
+      <button class="op" data-op="-">−</button>
+
+      <button data-digit="1">1</button>
+      <button data-digit="2">2</button>
+      <button data-digit="3">3</button>
+      <button class="op" data-op="+">+</button>
+
+      <button class="zero" data-digit="0">0</button>
+      <button data-action="decimal">.</button>
+      <button class="op" data-action="equals">=</button>
+    </div>
+  </div>
+
+  <script>
+    // 계산기 상태: 현재 입력값, 이전 값, 대기 중인 연산자, 다음 숫자 입력 시 덮어쓸지 여부
+    const state = {
+      current: '0',
+      previous: null,
+      operator: null,
+      overwrite: false,
+    };
+
+    const resultEl = document.getElementById('result');
+    const expressionEl = document.getElementById('expression');
+
+    // 두 수에 연산자를 적용해 결과를 반환합니다. 처리할 수 없으면 null을 반환합니다.
+    function calculate(a, operator, b) {
+      switch (operator) {
+        case '+': return a + b;
+        case '-': return a - b;
+        case '×': return a * b;
+        case '÷':
+          // TODO(human): 0으로 나누는 경우를 어떻게 처리할지 결정해서 구현해주세요.
+          // 고려할 점: null을 반환할지, 'Error' 문자열을 반환할지, 아니면 Infinity를 그대로 둘지.
+          // 부동소수점 오차(예: 0.1 + 0.2)를 어떻게 다룰지도 함께 고민해보세요.
+          return a / b;
+        default: return null;
+      }
+    }
+
+    // 숫자를 화면에 보기 좋게 바꿉니다.
+    function format(value) {
+      if (value === null || !isFinite(value)) return 'Error';
+      const num = Number(value.toPrecision(12));
+      return String(num);
+    }
+
+    function render() {
+      resultEl.textContent = state.current;
+      if (state.previous !== null && state.operator) {
+        expressionEl.textContent = `${state.previous} ${state.operator}`;
+      } else {
+        expressionEl.textContent = '';
+      }
+      document.querySelectorAll('button[data-op]').forEach(btn => {
+        btn.classList.toggle('active-op', btn.dataset.op === state.operator);
+      });
+    }
+
+    function inputDigit(digit) {
+      if (state.overwrite || state.current === '0' || state.current === 'Error') {
+        state.current = digit;
+        state.overwrite = false;
+      } else {
+        if (state.current.replace(/[-.]/g, '').length >= 12) return;
+        state.current += digit;
+      }
+    }
+
+    function inputDecimal() {
+      if (state.overwrite || state.current === 'Error') {
+        state.current = '0.';
+        state.overwrite = false;
+        return;
+      }
+      if (!state.current.includes('.')) state.current += '.';
+    }
+
+    function setOperator(op) {
+      if (state.operator && !state.overwrite) {
+        evaluate();
+      }
+      state.previous = state.current;
+      state.operator = op;
+      state.overwrite = true;
+    }
+
+    function evaluate() {
+      if (!state.operator || state.previous === null) return;
+      const a = parseFloat(state.previous);
+      const b = parseFloat(state.current);
+      const result = format(calculate(a, state.operator, b));
+      state.current = result;
+      state.previous = null;
+      state.operator = null;
+      state.overwrite = true;
+    }
+
+    function clearAll() {
+      state.current = '0';
+      state.previous = null;
+      state.operator = null;
+      state.overwrite = false;
+    }
+
+    function toggleSign() {
+      if (state.current === 'Error' || state.current === '0') return;
+      state.current = state.current.startsWith('-')
+        ? state.current.slice(1)
+        : '-' + state.current;
+    }
+
+    function togglePercent() {
+      if (state.current === 'Error') return;
+      state.current = format(parseFloat(state.current) / 100);
+      state.overwrite = true;
+    }
+
+    // 버튼 클릭 처리
+    document.querySelector('.buttons').addEventListener('click', (e) => {
+      const btn = e.target.closest('button');
+      if (!btn) return;
+
+      if (btn.dataset.digit !== undefined) inputDigit(btn.dataset.digit);
+      else if (btn.dataset.op !== undefined) setOperator(btn.dataset.op);
+      else {
+        switch (btn.dataset.action) {
+          case 'clear': clearAll(); break;
+          case 'sign': toggleSign(); break;
+          case 'percent': togglePercent(); break;
+          case 'decimal': inputDecimal(); break;
+          case 'equals': evaluate(); break;
+        }
+      }
+      render();
+    });
+
+    // 키보드 입력 지원
+    document.addEventListener('keydown', (e) => {
+      const key = e.key;
+      if (/^[0-9]$/.test(key)) inputDigit(key);
+      else if (key === '.') inputDecimal();
+      else if (key === '+') setOperator('+');
+      else if (key === '-') setOperator('-');
+      else if (key === '*') setOperator('×');
+      else if (key === '/') { e.preventDefault(); setOperator('÷'); }
+      else if (key === 'Enter' || key === '=') { e.preventDefault(); evaluate(); }
+      else if (key === 'Escape') clearAll();
+      else if (key === 'Backspace') {
+        if (state.overwrite || state.current.length <= 1 || state.current === 'Error') {
+          state.current = '0';
+          state.overwrite = false;
+        } else {
+          state.current = state.current.slice(0, -1);
+        }
+      }
+      else return;
+      render();
+    });
+
+    render();
+  </script>
+</body>
+</html>
